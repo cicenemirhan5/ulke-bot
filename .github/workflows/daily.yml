@@ -1,0 +1,56 @@
+name: gunluk-bolum
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # her gün 17:00 (Türkiye saati)
+  workflow_dispatch:        # elle test için
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Gereksinimler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          pip install -r requirements.txt
+
+      - name: Dünkü yorumları işle (vatandaşlık + oylar)
+        run: python citizens.py
+
+      - name: Bugünün senaryosunu üret
+        run: python generate_script.py
+
+      - name: Seslendir ve videoyu oluştur
+        run: python render.py
+
+      - name: Videoyu depoya yükle (Instagram'ın indirebilmesi için)
+        run: |
+          git config user.name "ulke-bot"
+          git config user.email "ulke-bot@users.noreply.github.com"
+          git add -A videos
+          git commit -m "video" || true
+          git push
+          sleep 30
+
+      - name: Instagram'a paylaş
+        run: python post_instagram.py
+
+      - name: Hafızayı kaydet
+        run: |
+          git add state.json
+          git commit -m "state" || true
+          git push
